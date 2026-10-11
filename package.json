@@ -1,0 +1,27 @@
+{
+  "name": "ai-review-railway",
+  "version": "0.1.0",
+  "description": "AI 审查铁路 · 铁轨冶金层：给维护者 review 承载力做承载层，给 AI PR 做轻量预审。",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "node --test tests/",
+    "check": "node --check dist/index.js"
+  },
+  "keywords": [
+    "github-action",
+    "pull-request",
+    "code-review",
+    "ai",
+    "automation",
+    "maintainer",
+    "rate-limiting",
+    "risk-classification"
+  ],
+  "author": "ai-review-railway contributors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,37 @@
+name: "AI Review Railway — 铁轨冶金层"
+description: >-
+  对 AI Agent 批量生成的 PR 做轻量预审与承载力保护：识别、限流、风险分级、
+  人类担保、沙盒白名单、度量。默认 observe 模式，不 checkout、不执行 PR 代码。
+branding:
+  icon: "shield"
+  color: "green"
+inputs:
+  config_path:
+    description: "配置文件路径（YAML，零依赖子集）"
+    required: false
+    default: ".ai-review-railway.yml"
+  token:
+    description: "GitHub Token（建议用 ${{ github.token }}）"
+    required: false
+    default: ${{ github.token }}
+  mode:
+    description: "覆盖配置中的模式：observe | enforce"
+    required: false
+outputs:
+  is_ai:
+    description: "是否判定为 AI 生成 PR（true/false）"
+  risk_level:
+    description: "风险等级：low | medium | high"
+  rate_limited:
+    description: "是否触发限流（true/false）"
+  guarantor_required:
+    description: "是否需要人类担保人（true/false）"
+  guarantor_satisfied:
+    description: "担保人是否已就位（true/false）"
+  sandbox_allowed:
+    description: "是否通过沙盒白名单（true/false）"
+  metrics_json:
+    description: "本次预审的度量 JSON（字符串）"
+runs:
+  using: "node20"
+  main: "dist/index.js"

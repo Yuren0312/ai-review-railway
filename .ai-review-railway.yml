@@ -1,0 +1,33 @@
+# AI 审查铁路 · 默认配置
+# 复制到你的仓库根目录，按需修改。本文件同时是「零依赖 YAML 子集」的规范示例。
+
+enabled: true
+mode: observe            # observe | enforce（observe=只评论打标签；enforce=额外提示阻断，但绝不关闭）
+
+limits:
+  per_agent_per_day: 3   # 同一 AI Agent 每天最多 PR 数
+  per_repo_per_day: 10   # 仓库每天最多 PR 数
+  max_files: 20          # 单 PR 文件数阈值
+  max_additions: 500     # 单 PR 新增行阈值
+
+risk:
+  high_paths:
+    - ".github/workflows/**"
+    - "package.json"
+    - "requirements.txt"
+    - "pyproject.toml"
+    - "**/auth/**"
+  require_tests_for: [medium, high]
+
+guarantor:
+  required_for: [medium, high]
+  approved_label: "ai-guarantor-approved"
+
+sandbox:
+  allow_repos: []                # 留空 = 不限制仓库
+  allow_branches: ["ai-sandbox/*"]   # 只在这些分支先试跑
+
+review:
+  comment: true
+  checklist: true
+  metrics: true

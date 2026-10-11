@@ -1,0 +1,14 @@
+{
+  "action": "opened",
+  "number": 123,
+  "pull_request": {
+    "number": 123,
+    "title": "chore: bump dependencies and tweak ci",
+    "body": "## Summary\n\nUpdate deps.\n\n## Changes\n\n- bump lodash\n\n## Test Plan\n\nn/a\n",
+    "user": { "login": "gpt-bot", "type": "Bot" },
+    "head": { "ref": "ai-sandbox/feat", "sha": "0000000000000000000000000000000000000001" },
+    "base": { "ref": "main", "sha": "0000000000000000000000000000000000000000" },
+    "labels": [ { "name": "ai-generated" } ]
+  },
+  "repository": { "full_name": "Yuren0312/ai-review-railway" }
+}

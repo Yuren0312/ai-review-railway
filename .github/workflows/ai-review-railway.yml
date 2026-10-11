@@ -1,0 +1,34 @@
+name: AI Review Railway
+
+# 用 pull_request_target：在受信任的基础分支上下文运行，且默认不 checkout PR 代码。
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: read
+  statuses: read
+
+jobs:
+  railway:
+    runs-on: ubuntu-latest
+    steps:
+      # 注意：这里【不】执行 actions/checkout。动作全程走 API 读取元数据，
+      # 从而避免 checkout / 执行来自 PR（尤其是 fork）的代码。
+      - name: AI Review Railway（预审 + 承载力保护）
+        uses: Yuren0312/ai-review-railway@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config_path: .ai-review-railway.yml
+
+  # 可选：月度承载力报告（workflow_dispatch 手动触发）
+  # metrics-report:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: 生成月度度量报告
+  #       run: echo "TODO: 用 ai-review-railway 的度量输出生成 issue 报告"
