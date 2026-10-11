@@ -19,6 +19,7 @@
   ],
   "author": "ai-review-railway contributors",
   "license": "MIT",
+  "aiReviewRailway": "e2e-smoke-test",
   "engines": {
     "node": ">=18"
   },
