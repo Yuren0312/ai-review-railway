@@ -11,9 +11,9 @@ inputs:
     required: false
     default: ".ai-review-railway.yml"
   token:
-    description: "GitHub Token（建议用 ${{ github.token }}）"
+    description: "GitHub Token（留空则自动使用 GITHUB_TOKEN 环境变量）"
     required: false
-    default: ${{ github.token }}
+    default: ""
   mode:
     description: "覆盖配置中的模式：observe | enforce"
     required: false
