@@ -1,25 +1,25 @@
 ---
-name: AI PR 误判申诉（False positive appeal）
-about: 你的 PR 被误判为 AI 生成 / 风险等级过高
+name: False-positive appeal
+about: Your PR was mis-flagged as AI-generated / over-classified
 title: "[appeal] PR #"
 labels: appeal
 assignees: ""
 ---
 
-## 被误判的 PR
+## The mis-flagged PR
 
-- PR 链接：
-- 被判定的风险等级：
-- 被判定为 AI 生成的依据（预审报告里的信号）：
+- PR link:
+- Assigned risk level:
+- Signals cited in the pre-review report:
 
-## 申诉理由
+## Reason for appeal
 
-<!-- 说明为什么这是误判。例如：作者是真人、改动虽大但已有人工测试等。 -->
+<!-- Explain why this is a false positive, e.g. the author is human, or the change is large but manually tested. -->
 
-## 期望结果
+## Expected outcome
 
-<!-- 例如：降低风险等级 / 取消 needs-guarantor / 改进识别规则。 -->
+<!-- e.g. lower the risk level / remove needs-guarantor / improve the detection rule. -->
 
-## 补充
+## Additional context
 
-<!-- 可附上人工 review 记录、测试截图等证据。 -->
+<!-- Attach human review records, test screenshots, etc. -->

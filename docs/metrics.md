@@ -1,10 +1,10 @@
-# 度量（Metrics）
+# Metrics
 
-`ai-review-railway` 输出的度量，目的是让维护者看清自己的「轨道」还剩多少承载力。度量分两层：**单 PR 快照** 与 **仓库聚合**。
+The metrics emitted by `ai-review-railway` exist to let maintainers see how much "rail" they have left. They come in two layers: a **per-PR snapshot** and a **repo aggregate**.
 
-## 单 PR 快照（`railway-metrics.json`）
+## Per-PR snapshot (`railway-metrics.json`)
 
-每次运行都会在工作区写出 `railway-metrics.json`，字段如下：
+Each run writes `railway-metrics.json` into the workspace, with these fields:
 
 ```json
 {
@@ -15,7 +15,7 @@
   "agent": "claude-3",
   "is_ai": true,
   "risk_level": "high",
-  "risk_reasons": ["依赖变更：package.json", "..."],
+  "risk_reasons": ["dependency change: package.json", "..."],
   "rate_limited": false,
   "rate_counts": { "author_day": 0, "agent_day": 2, "repo_day": 5 },
   "guarantor_required": true,
@@ -25,40 +25,40 @@
   "additions": 120,
   "deletions": 8,
   "ci": "success",
-  "aggregate": { "...": "见下" }
+  "aggregate": { "...": "see below" }
 }
 ```
 
-## 仓库聚合（`aggregate` 字段）
+## Repo aggregate (the `aggregate` field)
 
-基于最近 100 个 PR 计算，口径如下：
+Computed from the latest 100 PRs:
 
-| 指标 | 含义 | 计算方式 |
+| Metric | Meaning | How it is computed |
 | --- | --- | --- |
-| `acceptance_rate` | 接受率 | 已合并数 ÷ 已关闭数 |
-| `rollback_rate` | 回滚率 | 标题含 `revert/rollback/回滚/撤销` 的 PR 数 ÷ 已关闭数 |
-| `avg_review_minutes` | 平均审查时长 | 已合并 PR 的 `merged_at − created_at` 均值（分钟） |
-| `maintainer_burden` | 维护者负担 | 未合并即被关闭的 PR 数 ÷ 已关闭数（近似「白看」的负担） |
-| `prs_recent` | 样本量 | 本次统计的 PR 数量 |
+| `acceptance_rate` | acceptance rate | merged ÷ closed |
+| `rollback_rate` | rollback rate | PRs whose title matches `revert/rollback` ÷ closed |
+| `avg_review_minutes` | average review time | mean of `merged_at − created_at` over merged PRs (minutes) |
+| `maintainer_burden` | maintainer burden | closed-without-merge ÷ closed (approximates "wasted review") |
+| `prs_recent` | sample size | number of PRs used in this aggregation |
 
-> 这些是**近似口径**，用于趋势观察，不用于精确考核。真正的回滚率应结合部署回滚事件，后续版本会补充。
+> These are **approximate** signals for trend-watching, not precise KPIs. True rollback rate should be reconciled with deployment rollback events — a future version will add that.
 
-## 输出通道
+## Output channels
 
-1. **Step Summary**：写入 `$GITHUB_STEP_SUMMARY`，在 Actions 运行页直接看到一张汇总表。
-2. **Artifact**：`railway-metrics.json` 落盘，可在 workflow 里用 `actions/upload-artifact` 归档。
-3. **Action 输出**：`metrics_json` 输出变量，供后续步骤消费。
+1. **Step summary**: written to `$GITHUB_STEP_SUMMARY`, so a summary table shows up on the Actions run page.
+2. **Artifact**: `railway-metrics.json` is persisted to disk; archive it with `actions/upload-artifact` in your workflow.
+3. **Action outputs**: the `metrics_json` output variable for downstream steps.
 
-## 消费示例
+## Consuming example
 
 ```yaml
-- name: 归档度量
+- name: Archive metrics
   uses: actions/upload-artifact@v4
   with:
     name: railway-metrics
     path: railway-metrics.json
 ```
 
-## 月度 Issue 报告（规划中）
+## Monthly issue report (planned)
 
-`docs/roadmap.md` 里规划了「月度承载力报告」：由 `workflow_dispatch` / `schedule` 触发，聚合当月度量，自动开一个 issue 汇总 review 负载、接受率、回滚率、平均审查时长与维护者负担，让维护者按月复盘「轨道磨损」。
+`docs/roadmap.md` plans a "monthly capacity report": triggered by `workflow_dispatch` / `schedule`, it aggregates that month's metrics and opens an issue summarizing review load, acceptance rate, rollback rate, average review time, and maintainer burden, so maintainers can review "rail wear" monthly.

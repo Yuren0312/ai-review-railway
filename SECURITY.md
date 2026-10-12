@@ -1,29 +1,29 @@
 # Security Policy
 
-## 安全承诺
+## Our commitment
 
-`ai-review-railway` 本身是一个**审阅承载工具**，它被设计为在受信任的仓库上下文中运行。我们对安全问题的处理原则如下。
+`ai-review-railway` is itself a *review-carrying* tool, designed to run in a trusted repository context. We treat security seriously and follow these principles.
 
-## 本工具自身的安全边界
+## The tool's own security boundaries
 
-1. **默认 observe 模式**：不关闭、不合并、不推送任何 PR。
-2. **不执行 PR 代码**：动作不 checkout、不安装依赖、不运行来自 PR 的任何内容，全程通过 GitHub REST API 读取元数据（PR 描述、diff 统计、commit 信息、check-runs）。
-3. **推荐 `pull_request_target`**：该事件在基础分支（受信任）的上下文中运行，且配合「不 checkout」策略，可避免来自 fork 的恶意 PR 代码被执行。
-4. **最小权限**：示例 workflow 仅申请 `contents: read`、`pull-requests: write`、`issues: write`、`checks: read`、`statuses: read`。
+1. **Default `observe` mode**: it never closes, merges, or pushes anything.
+2. **Never executes PR code**: the action does not checkout, install dependencies, or run anything that comes from a PR. It reads everything (PR description, diff stats, commit messages, check-runs) through the GitHub REST API.
+3. **`pull_request_target` recommended**: this event runs in the trusted base-branch context and, combined with the no-checkout strategy, prevents malicious code from forked PRs from being executed.
+4. **Least privilege**: the example workflow only requests `contents: read`, `pull-requests: write`, `issues: write`, `checks: read`, `statuses: read`.
 
-## 你接入时应注意
+## What to watch for when integrating
 
-- 如果你把 `mode` 改为 `enforce`，请自行理解其「阻断提示」语义，并在发布前于私有仓库 / 沙盒分支验证。
-- 不要把高权限 token（如可写仓库、可读组织 secrets 的 PAT）传入 `token` 输入；建议始终使用 `${{ github.token }}`（默认只读，且随 workflow 作用域自动裁剪）。
-- 本工具不存储、不外传任何凭据。
+- If you switch `mode` to `enforce`, understand its "advisory blocking" semantics yourself and verify it in a private repo / sandbox branch before rolling it out.
+- Do not pass a high-privilege token (e.g. one that can write to the repo or read org secrets) into the `token` input; prefer `${{ github.token }}` (scoped read-only by default).
+- This tool does not store or exfiltrate credentials.
 
-## 报告漏洞
+## Reporting a vulnerability
 
-如果你在本工具中发现安全漏洞（例如导致执行任意代码、权限提升、绕过仓库规则的路径），请**不要**开公开 issue，而是发送到维护者的私密渠道，或在 issue 中仅描述影响而不给出可利用细节。我们会在确认后尽快修复并发布公告。
+If you find a vulnerability in this tool (for example a path that leads to arbitrary code execution, privilege escalation, or bypassing repo rules), please do **not** open a public issue. Report it through a private channel to the maintainers, or describe only the impact in an issue without exploitable details. We will fix it as soon as possible and publish an advisory.
 
-## 受支持版本
+## Supported versions
 
-| 版本 | 支持状态 |
+| Version | Support status |
 | --- | --- |
-| 最新 `main` 分支 | 主动维护 |
-| 历史 tag | 仅在发现严重漏洞时提供修复建议 |
+| Latest `main` branch | Actively maintained |
+| Historical tags | Fix suggestions only for critical vulnerabilities |

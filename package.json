@@ -1,7 +1,7 @@
 {
   "name": "ai-review-railway",
   "version": "0.1.0",
-  "description": "AI 审查铁路 · 铁轨冶金层：给维护者 review 承载力做承载层，给 AI PR 做轻量预审。",
+  "description": "AI Review Railway — the railway-metallurgy layer: a carrying layer for maintainer review, and lightweight pre-review for AI-generated PRs.",
   "main": "dist/index.js",
   "scripts": {
     "test": "node --test tests/",

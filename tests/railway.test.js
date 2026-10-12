@@ -2,12 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const path = require('path');
 
 const railway = require('../dist/index.js');
 
-/* ---------------- YAML 解析 ---------------- */
-test('parseYaml 解析任务给定配置', () => {
+/* ---------------- YAML parsing ---------------- */
+test('parseYaml parses the reference config', () => {
   const cfgText = [
     'enabled: true',
     'mode: observe # observe | enforce',
@@ -38,7 +37,7 @@ test('parseYaml 解析任务给定配置', () => {
 
   const c = railway.parseYaml(cfgText);
   assert.strictEqual(c.enabled, true);
-  assert.strictEqual(c.mode, 'observe'); // 注释被剥离
+  assert.strictEqual(c.mode, 'observe'); // inline comment is stripped
   assert.strictEqual(c.limits.per_agent_per_day, 3);
   assert.strictEqual(c.limits.per_repo_per_day, 10);
   assert.strictEqual(c.limits.max_files, 20);
@@ -54,7 +53,7 @@ test('parseYaml 解析任务给定配置', () => {
   assert.strictEqual(c.review.comment, true);
 });
 
-test('parseYaml 处理空列表、嵌套对象、引号内的 #', () => {
+test('parseYaml handles empty lists, nested objects, and # inside quotes', () => {
   const c = railway.parseYaml([
     'a: []',
     'b:',
@@ -70,7 +69,7 @@ test('parseYaml 处理空列表、嵌套对象、引号内的 #', () => {
 });
 
 /* ---------------- glob ---------------- */
-test('glob 匹配 ** 与 *', () => {
+test('glob matches ** and *', () => {
   assert.ok(railway.matchAny('.github/workflows/ci.yml', ['.github/workflows/**']).length === 1);
   assert.ok(railway.matchAny('src/auth/login.ts', ['**/auth/**']).length === 1);
   assert.ok(railway.matchAny('ai-sandbox/foo', ['ai-sandbox/*']).length === 1);
@@ -78,7 +77,7 @@ test('glob 匹配 ** 与 *', () => {
   assert.ok(railway.matchAny('src/utils.ts', ['**/auth/**']).length === 0);
 });
 
-/* ---------------- AI 识别 ---------------- */
+/* ---------------- AI detection ---------------- */
 function ctx(fields) {
   return Object.assign({
     labels: [], author: 'alice', authorType: 'User', title: 'fix', body: '',
@@ -86,13 +85,13 @@ function ctx(fields) {
   }, fields);
 }
 
-test('detectAiPr 通过作者 bot 识别', () => {
+test('detectAiPr detects a bot author', () => {
   const r = railway.detectAiPr(ctx({ author: 'gpt-bot', authorType: 'Bot' }), railway.DEFAULT_CONFIG);
   assert.ok(r.isAi);
   assert.ok(r.signals.some((s) => s.type === 'author'));
 });
 
-test('detectAiPr 通过 label 与 trailer 识别', () => {
+test('detectAiPr detects labels and trailers', () => {
   const r = railway.detectAiPr(ctx({
     labels: ['ai-generated'],
     commits: [{ message: 'Generated-by: claude-3\n\nfix something' }],
@@ -103,13 +102,13 @@ test('detectAiPr 通过 label 与 trailer 识别', () => {
   assert.strictEqual(r.agent, 'claude-3');
 });
 
-test('detectAiPr 普通人工 PR 不误报', () => {
+test('detectAiPr does not flag a normal human PR', () => {
   const r = railway.detectAiPr(ctx({ author: 'alice' }), railway.DEFAULT_CONFIG);
   assert.strictEqual(r.isAi, false);
 });
 
-/* ---------------- 风险分级 ---------------- */
-test('classifyRisk 命中 high_paths 判 high', () => {
+/* ---------------- risk classification ---------------- */
+test('classifyRisk marks high_paths as high', () => {
   const c = ctx({
     files: [{ filename: '.github/workflows/ci.yml', additions: 1, deletions: 1 }],
     stats: { files: 1, additions: 1, deletions: 1 },
@@ -118,7 +117,7 @@ test('classifyRisk 命中 high_paths 判 high', () => {
   assert.strictEqual(r.level, 'high');
 });
 
-test('classifyRisk 依赖变更判 high', () => {
+test('classifyRisk marks dependency changes as high', () => {
   const c = ctx({
     files: [{ filename: 'requirements.txt', additions: 1, deletions: 1 }],
     stats: { files: 1, additions: 1, deletions: 1 },
@@ -127,7 +126,7 @@ test('classifyRisk 依赖变更判 high', () => {
   assert.strictEqual(r.level, 'high');
 });
 
-test('classifyRisk 大 diff 判 medium', () => {
+test('classifyRisk marks large diffs as medium', () => {
   const c = ctx({
     files: Array.from({ length: 30 }, (_, i) => ({ filename: `src/f${i}.ts`, additions: 10, deletions: 0 })),
     stats: { files: 30, additions: 300, deletions: 0 },
@@ -136,7 +135,7 @@ test('classifyRisk 大 diff 判 medium', () => {
   assert.strictEqual(r.level, 'medium');
 });
 
-test('classifyRisk 小改动判 low', () => {
+test('classifyRisk marks small changes as low', () => {
   const c = ctx({
     files: [{ filename: 'README.md', additions: 2, deletions: 0 }],
     stats: { files: 1, additions: 2, deletions: 0 },
@@ -145,8 +144,8 @@ test('classifyRisk 小改动判 low', () => {
   assert.strictEqual(r.level, 'low');
 });
 
-/* ---------------- 评论构建 ---------------- */
-test('buildComment 包含全部关键段落', () => {
+/* ---------------- comment builder ---------------- */
+test('buildComment includes all key sections', () => {
   const c = ctx({
     number: 42, title: 'auto: add feature', author: 'bot-01', authorType: 'Bot',
     files: [{ filename: 'src/a.ts', additions: 5, deletions: 0 }],
@@ -155,24 +154,24 @@ test('buildComment 包含全部关键段落', () => {
   const ai = { isAi: true, signals: [{ type: 'author', detail: 'bot' }], agent: 'bot-01' };
   const risk = { level: 'medium', reasons: ['x'], hasTests: false };
   const rate = { exceeded: false, reasons: [], counts: {} };
-  const guarantor = { required: true, satisfied: false, evidence: '未绑定' };
+  const guarantor = { required: true, satisfied: false, evidence: 'none' };
   const sandbox = { allowed: true, problems: [], note: '' };
   const body = railway.buildComment(c, railway.DEFAULT_CONFIG, ai, risk, rate, guarantor, sandbox, 'observe');
-  for (const kw of ['变更摘要', '识别结果', '风险分级', '影响面', '测试证据', '回滚方案', '建议审查顺序', '阻断项', '人类担保人状态']) {
-    assert.ok(body.includes(kw), '应包含段落：' + kw);
+  for (const kw of ['Change summary', 'Detection', 'Risk classification', 'Impact surface', 'Test evidence', 'Rollback plan', 'Suggested review order', 'Blockers', 'Human guarantor status']) {
+    assert.ok(body.includes(kw), 'should include section: ' + kw);
   }
 });
 
-/* ---------------- 沙盒 ---------------- */
-test('sandboxCheck 分支白名单', () => {
+/* ---------------- sandbox ---------------- */
+test('sandboxCheck enforces branch allow-list', () => {
   const c = ctx({ headRef: 'ai-sandbox/x', baseRef: 'main', repoFull: 'o/r' });
   const cfg = JSON.parse(JSON.stringify(railway.DEFAULT_CONFIG));
   const ok = railway.sandboxCheck(c, cfg);
   assert.strictEqual(ok.allowed, true);
   const c2 = ctx({ headRef: 'feature/x', baseRef: 'main', repoFull: 'o/r' });
   const ng = railway.sandboxCheck(c2, cfg);
-  assert.strictEqual(ng.allowed, true); // 未 enforce 时仅提示，不阻断
+  assert.strictEqual(ng.allowed, true); // not enforce: only warns, does not block
   assert.ok(ng.problems.length === 1);
 });
 
-console.log('\n✅ 全部纯函数测试通过\n');
+console.log('\n✅ all pure-function tests passed\n');

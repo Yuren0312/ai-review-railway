@@ -1,26 +1,26 @@
 ---
-name: Configuration help（配置求助）
-about: 询问如何配置、如何接入
+name: Configuration help
+about: Ask how to configure or integrate the action
 title: "[config] "
 labels: question
 assignees: ""
 ---
 
-## 你的目标
+## Your goal
 
-<!-- 你想实现什么接入效果？例如：只对 ai-sandbox/* 分支生效，中风险就要担保人。 -->
+<!-- What integration outcome do you want? e.g. only apply to ai-sandbox/* branches, require a guarantor for medium risk. -->
 
-## 当前配置
+## Current config
 
 ```yaml
-# 贴出你当前的 .ai-review-railway.yml（脱敏）
+# paste your current .ai-review-railway.yml (redacted)
 ```
 
-## 遇到的问题
+## The problem
 
-<!-- 报错信息、不符合预期的表现。 -->
+<!-- Error messages, unexpected behavior. -->
 
-## 环境
+## Environment
 
-- 仓库类型：公开 / 私有 / 组织
-- 是否使用 fork PR：是 / 否
+- Repo type: public / private / org
+- Using fork PRs: yes / no

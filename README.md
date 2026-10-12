@@ -1,47 +1,47 @@
-# 🚂 AI 审查铁路 · 铁轨冶金层（ai-review-railway）
+# 🚂 AI Review Railway — the railway-metallurgy layer
 
-> **English abstract:** `ai-review-railway` is a lightweight, zero-dependency GitHub Action that acts as a *carrying layer* for maintainer review when AI agents flood a repository with pull requests. It does **not** replace human review — it rate-limits, classifies risk, requires human guarantors for risky changes, sandboxes trial runs, and emits metrics, so that the "railway metallurgy" (maintainer review capacity) bends instead of breaking.
+> **What it is:** `ai-review-railway` is a lightweight, zero-dependency GitHub Action that acts as a *carrying layer* for maintainer review when AI agents flood a repository with pull requests. It does **not** replace human review — it rate-limits, classifies risk, requires human guarantors for risky changes, sandboxes trial runs, and emits metrics, so that the "railway metallurgy" (maintainer review capacity) bends instead of breaking.
 
-## 一句话
+## In one sentence
 
-当 **AI Agent（蒸汽机）** 批量生成 PR 时，维护者的 review 承载力就是**铁轨冶金**。这个项目不等待一套完美审查体系，而是用**轻量规则先试跑**：限流、分级、白名单、人类担保、沙盒、度量 —— 把 PR 泛滥带来的毁灭性断裂，转化成可控的日常磨损。
+When **AI agents (steam engines)** generate PRs in bulk, a maintainer's review capacity is the **railway metallurgy**. This project doesn't wait for a perfect review system — it runs **lightweight rules first**: rate-limiting, risk classification, allow-listing, human guarantors, sandboxing, and metrics — turning the catastrophic fracture of a PR flood into controllable everyday wear.
 
-## 隐喻映射
+## The metaphor
 
-| 现实世界 | 铁路隐喻 |
+| Real world | Railway metaphor |
 | --- | --- |
-| AI Agent 批量生成 PR | 蒸汽机轰然驶来 |
-| 维护者的 review 承载力 | 铁轨冶金（轨道的强度与产能） |
-| PR 泛滥、超出承载力 | 压碎轨道、脱轨断裂 |
-| 限流 / 分级 | 分散荷载、按重车分轨 |
-| 沙盒 / 白名单 | 私有矿区先试跑 |
-| 人类担保 | 关键道岔需人工扳道 |
-| AI 预审 + 人类终审 | 蒸汽与马匹并行 |
+| AI agents generating PRs in bulk | Steam engines thundering down the line |
+| Maintainer review capacity | Railway metallurgy (the strength and throughput of the rails) |
+| PR flood exceeding capacity | Rails crushed, derailment |
+| Rate-limiting / classification | Distributing the load, routing heavy trains onto separate tracks |
+| Sandbox / allow-list | Trial runs in a private quarry first |
+| Human guarantor | A human throws the switch at critical junctions |
+| AI pre-review + human final review | Steam and horses running in parallel |
 
-## 它做什么
+## What it does
 
-任何开源仓库，只要**加一个 GitHub Actions workflow 和一份配置文件**，就能「一下完成 AI PR 的预审与承载力保护」。它不替代人类 review，而是：
+Any open-source repo can add **one GitHub Actions workflow and one config file** to get "AI-PR pre-review and capacity protection" in one go. It does not replace human review — it:
 
-- 给**人类 review 做承载层** —— 把 AI PR 先过一次轻量闸口；
-- 给 **AI review 承载力做贡献** —— 输出度量，让维护者看清自己的「轨道」还剩多少。
+- **carries the load for human review** — every AI PR passes a lightweight gate first;
+- **contributes to AI-review capacity** — it emits metrics so maintainers can see how much "rail" they have left.
 
-## 核心能力（MVP 已落地）
+## Core capabilities (MVP, shipped and tested)
 
-| 能力 | 说明 |
+| Capability | Description |
 | --- | --- |
-| 🔍 **识别 AI PR** | 标签、作者（Bot）、commit trailer、PR 模板勾选、关键词、生成式痕迹 |
-| ⏱️ **限流** | 按仓库 / 作者 / AI Agent，每天 / 每小时限制；超限自动评论 + 打 `needs-guarantor`，**不直接关闭** |
-| 🎚️ **风险分级** | 综合文件数、增删行数、敏感路径、依赖/workflow/权限变更、测试证据、CI 状态 → `railway:low / medium / high` |
-| 📝 **自动预审评论** | 变更摘要、风险等级、影响面、测试证据、回滚方案、建议审查顺序、阻断项、担保人状态 |
-| 🤝 **人类担保** | 中高风险 PR 必须绑定人类担保人；支持 `/guarantee` 评论或 `ai-guarantor-approved` 标签 |
-| 🧪 **沙盒 / 白名单** | 只允许指定仓库、分支、路径先试跑，例如 `ai-sandbox/*` |
-| 🐎 **兜底并行** | AI 自动预审 + 人类最终 review；高风险必须人类确认 |
-| 📊 **度量** | review 负载、接受率、回滚率、平均审查时长、维护者负担 → artifact + step summary |
-| 🛡️ **安全原则** | 默认 `observe` 模式；**不 checkout、不执行 PR 代码**；不绕过仓库规则；不制造 spam |
+| 🔍 **Detect AI PRs** | Labels, author (Bot), commit trailers, PR-template checkboxes, keywords, generative traces |
+| ⏱️ **Rate limiting** | Per repo / author / agent, per day / hour; over-limit triggers a comment + `needs-guarantor` label — **never closes** |
+| 🎚️ **Risk classification** | Files changed, +/- lines, sensitive paths, dependency/workflow/permission changes, test evidence, CI status → `railway:low / medium / high` |
+| 📝 **Auto pre-review comment** | Change summary, risk level, impact surface, test evidence, rollback plan, suggested review order, blockers, guarantor status |
+| 🤝 **Human guarantor** | Medium/high-risk PRs must bind a human guarantor; via `/guarantee` comment or `ai-guarantor-approved` label |
+| 🧪 **Sandbox / allow-list** | Only allow specific repos, branches, or paths first, e.g. `ai-sandbox/*` |
+| 🐎 **Parallel fallback** | AI auto-pre-review + human final review; high risk requires human confirmation |
+| 📊 **Metrics** | Review load, acceptance rate, rollback rate, avg review time, maintainer burden → artifact + step summary |
+| 🛡️ **Safety principles** | Default `observe` mode; **no checkout, no executing PR code**; no bypassing repo rules; no spam |
 
-## 快速接入（30 秒）
+## Quick start (30 seconds)
 
-1. 在仓库根目录加一份配置 `.ai-review-railway.yml`（复制 [默认配置](./.ai-review-railway.yml) 即可）：
+1. Add a config file `.ai-review-railway.yml` to your repo root (copy the [default config](./.ai-review-railway.yml)):
 
 ```yaml
 enabled: true
@@ -71,7 +71,7 @@ review:
   metrics: true
 ```
 
-2. 加一个 workflow（[示例](./.github/workflows/ai-review-railway.yml)），核心是用 `pull_request_target` 事件触发：
+2. Add a workflow ([example](./.github/workflows/ai-review-railway.yml)) — the key is to trigger on `pull_request_target`:
 
 ```yaml
 name: AI Review Railway
@@ -92,48 +92,48 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-3. 搞定。之后每个 PR 都会收到一份「预审报告」评论，并被打上 `railway:*` 风险标签。
+3. Done. Every PR now receives a "pre-review report" comment and gets a `railway:*` risk label.
 
-> ⚠️ 注意：本项目**默认不 checkout**，动作全程走 GitHub REST API 读取 PR 元数据、diff、commit、check-runs。请使用 `pull_request_target`（而非 `pull_request`）以避免执行来自 fork 的 PR 代码。
+> ⚠️ Note: this project **does not checkout by default**. The action reads PR metadata, diff, commits, and check-runs entirely through the GitHub REST API. Use `pull_request_target` (not `pull_request`) so code from forked PRs is never executed.
 
-## 仓库结构
+## Repository layout
 
 ```
 ai-review-railway/
-├── action.yml                          # Action 定义（node20，入口 dist/index.js）
-├── dist/index.js                       # 核心脚本（零依赖，提交即用）
-├── src/index.js                        # 同一份源码（便于阅读与二次开发）
-├── .ai-review-railway.yml              # 默认配置
+├── action.yml                          # Action definition (node20, entry dist/index.js)
+├── dist/index.js                       # Core script (zero deps, committed ready-to-run)
+├── src/index.js                        # Same source (for reading and hacking)
+├── .ai-review-railway.yml              # Default config
 ├── .github/
-│   ├── workflows/ai-review-railway.yml # 使用示例
-│   ├── pull_request_template.md        # PR 模板（内置 AI 声明勾选）
-│   └── ISSUE_TEMPLATE/                 # bug / feature / config / 误判申诉
-├── docs/                               # 架构、规则、度量、路线图、案例
-├── tests/                              # 零依赖单元测试（node:test）
-└── examples/                           # 配置示例 + 预审报告示例
+│   ├── workflows/ai-review-railway.yml # Usage example
+│   ├── pull_request_template.md        # PR template (with AI declaration checkbox)
+│   └── ISSUE_TEMPLATE/                 # bug / feature / config / false-positive appeal
+├── docs/                               # architecture, rules, metrics, roadmap, cases
+├── tests/                              # zero-dependency unit tests (node:test)
+└── examples/                           # config example + review-report example
 ```
 
-## 本地运行与测试
+## Local run & test
 
 ```bash
-# 纯函数单元测试（零依赖）
+# pure-function unit tests (zero deps)
 node --test tests/railway.test.js
 
-# 用本地事件 JSON 试跑（不调 API 时只打印，不崩溃）
+# dry-run with a local event JSON
 node dist/index.js --config .ai-review-railway.yml --local tests/fixtures/example-pr-event.json
 ```
 
-## 安全承诺
+## Safety commitments
 
-- **默认 `observe`**：只评论 + 打标签，绝不关闭 / 合并 / 推送。
-- **不执行 PR 代码**：不 checkout、不安装依赖、不运行任何来自 PR 的内容。
-- **不绕过仓库规则**：它叠加在仓库既有 CI / 分支保护之上，而不是取代。
-- **不制造 spam**：每个 PR 每个事件最多一条评论，且可关闭。
-- **试错成本自担**：接入方自行评估误判风险，本项目不承担任何决策责任（见 [LICENSE](./LICENSE)）。
+- **Default `observe`**: only comment + label — never close / merge / push.
+- **Never executes PR code**: no checkout, no dependency install, nothing from the PR is run.
+- **Never bypasses repo rules**: it layers on top of your existing CI / branch protection.
+- **No spam**: at most one comment per PR event, and it can be disabled.
+- **Risk is yours to assess**: the integrating repo owns the false-positive risk; see [LICENSE](./LICENSE).
 
-## 贡献
+## Contributing
 
-欢迎贡献。请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)。本项目本身就是「给 AI PR 做承载层」的试验田 —— 你的 PR 也会被它自己预审一遍 🚂。
+Welcome! Read [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) first. This project is itself a testbed for "carrying the load of AI PRs" — your PR will be pre-reviewed by the very tool it changes 🚂.
 
 ## License
 

@@ -1,14 +1,15 @@
-# AI 审查铁路 · 默认配置
-# 复制到你的仓库根目录，按需修改。本文件同时是「零依赖 YAML 子集」的规范示例。
+# ai-review-railway · default config
+# Copy this to your repo root and adjust as needed. This file doubles as the
+# reference example of the "zero-dependency YAML subset".
 
 enabled: true
-mode: observe            # observe | enforce（observe=只评论打标签；enforce=额外提示阻断，但绝不关闭）
+mode: observe            # observe | enforce (observe = comment+label only; enforce = additionally flags blockers, but never closes)
 
 limits:
-  per_agent_per_day: 3   # 同一 AI Agent 每天最多 PR 数
-  per_repo_per_day: 10   # 仓库每天最多 PR 数
-  max_files: 20          # 单 PR 文件数阈值
-  max_additions: 500     # 单 PR 新增行阈值
+  per_agent_per_day: 3   # max PRs per AI agent per day
+  per_repo_per_day: 10   # max PRs per repo per day
+  max_files: 20          # file-count threshold for a single PR
+  max_additions: 500     # additions threshold for a single PR
 
 risk:
   high_paths:
@@ -24,8 +25,8 @@ guarantor:
   approved_label: "ai-guarantor-approved"
 
 sandbox:
-  allow_repos: []                # 留空 = 不限制仓库
-  allow_branches: ["ai-sandbox/*"]   # 只在这些分支先试跑
+  allow_repos: []                # empty = no repo restriction
+  allow_branches: ["ai-sandbox/*"]   # trial-run only on these branches
 
 review:
   comment: true

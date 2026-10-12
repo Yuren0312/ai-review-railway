@@ -2,21 +2,25 @@
 'use strict';
 
 /**
- * ai-review-railway — AI 审查铁路 · 铁轨冶金层
+ * ai-review-railway — AI Review Railway · the railway-metallurgy layer
  * ------------------------------------------------------------------
- * 当 AI Agent 批量生成 PR 时，维护者的 review 承载力就是「铁轨冶金」。
- * 本项目不等待完美审查体系，而是用轻量规则先试跑：
- *   限流、分级、白名单、人类担保、沙盒、度量。
+ * When AI agents flood a repository with pull requests, a maintainer's
+ * review capacity is the "railway metallurgy". This project does not wait
+ * for a perfect review system — it uses lightweight rules to run first:
+ *   rate-limiting, risk classification, allow-listing, human guarantors,
+ *   sandboxing, and metrics.
  *
- * 设计原则（安全优先）：
- *   - 默认 observe 模式：只评论 + 打标签，绝不关闭 PR、绝不合并。
- *   - 全程走 GitHub REST API（读取 PR 元数据 / diff / commits / check-runs），
- *     不 checkout、不执行 PR 里的任何代码、不安装依赖。
- *   - 零运行时依赖：只用 Node 内置模块 + 全局 fetch（Node 18+）。
- *   - 不绕过仓库既有规则，不制造 spam，试错成本由接入方自担。
+ * Design principles (safety first):
+ *   - Default `observe` mode: only comment + label, never close or merge.
+ *   - Fully API-driven via the GitHub REST API (reads PR metadata / diff /
+ *     commits / check-runs). It never checks out, never installs deps, and
+ *     never executes any code from the PR.
+ *   - Zero runtime dependencies: only Node built-ins + global fetch (Node 18+).
+ *   - Does not bypass a repo's existing rules and does not spam.
  *
- * 作为 GitHub Action 运行（runs.using: node20，入口 dist/index.js），
- * 也可本地运行： node src/index.js --config .ai-review-railway.yml --local event.json
+ * Runs as a GitHub Action (runs.using: node20, entry point dist/index.js).
+ * Also runs locally:
+ *   node src/index.js --config .ai-review-railway.yml --local event.json
  */
 
 const fs = require('fs');
@@ -24,7 +28,7 @@ const path = require('path');
 const os = require('os');
 
 /* ==================================================================
- * 1. 默认配置（与 .ai-review-railway.yml 保持一致，用户可覆盖）
+ * 1. Default config (mirrors .ai-review-railway.yml; users can override)
  * ================================================================== */
 const DEFAULT_CONFIG = {
   enabled: true,
@@ -32,7 +36,7 @@ const DEFAULT_CONFIG = {
   limits: {
     per_agent_per_day: 3,
     per_repo_per_day: 10,
-    per_author_per_day: null,   // null = 不限制
+    per_author_per_day: null,   // null = disabled
     per_author_per_hour: null,
     per_agent_per_hour: null,
     per_repo_per_hour: null,
@@ -99,9 +103,9 @@ const DEFAULT_CONFIG = {
 };
 
 /* ==================================================================
- * 2. 极简 YAML 子集解析器（零依赖）
- *    支持：嵌套 map、块列表、流列表 [a,b]、空列表 []、引号、注释、
- *    true/false、整数、浮点、null。够用即可，不追求完整 YAML。
+ * 2. Minimal YAML-subset parser (zero dependencies)
+ *    Supports nested maps, block/flow sequences, quotes, comments,
+ *    booleans, integers, floats, null. Deliberately not full YAML.
  * ================================================================== */
 function stripComment(s) {
   let inS = false, inD = false;
@@ -243,7 +247,7 @@ function parseYaml(text) {
 }
 
 /* ==================================================================
- * 3. glob 匹配（支持 * 与 **）
+ * 3. glob matching (supports `*` and `**`)
  * ================================================================== */
 function globToRegExp(pattern) {
   let re = '';
@@ -251,7 +255,6 @@ function globToRegExp(pattern) {
     const c = pattern[i];
     if (c === '*') {
       if (pattern[i + 1] === '*') {
-        // '**/' or trailing '**'
         if (pattern[i + 2] === '/') { re += '(?:.*/)?'; i += 2; }
         else { re += '.*'; i += 1; }
       } else {
@@ -274,7 +277,7 @@ function matchAny(filePath, patterns) {
 }
 
 /* ==================================================================
- * 4. 配置加载 + 深合并
+ * 4. Config loading + deep merge
  * ================================================================== */
 function deepMerge(base, extra) {
   if (extra == null || typeof extra !== 'object') return extra === undefined ? base : extra;
@@ -287,7 +290,7 @@ function deepMerge(base, extra) {
 }
 
 /* ==================================================================
- * 5. GitHub API 客户端（全局 fetch，零依赖）
+ * 5. GitHub API client (global fetch, zero dependencies)
  * ================================================================== */
 class Gh {
   constructor(token, apiUrl) {
@@ -316,7 +319,7 @@ class Gh {
 }
 
 /* ==================================================================
- * 6. PR 上下文加载
+ * 6. PR context loading
  * ================================================================== */
 function env(name) { return process.env[name] || ''; }
 
@@ -328,14 +331,14 @@ async function loadContext(gh, localPath) {
   } else if (env('GITHUB_EVENT_PATH') && fs.existsSync(env('GITHUB_EVENT_PATH'))) {
     event = JSON.parse(fs.readFileSync(env('GITHUB_EVENT_PATH'), 'utf8'));
   } else {
-    throw new Error('未找到 GitHub 事件上下文（GITHUB_EVENT_PATH 缺失）。');
+    throw new Error('GitHub event context not found (GITHUB_EVENT_PATH is missing).');
   }
 
   const repoFull = event.repository ? event.repository.full_name : env('GITHUB_REPOSITORY');
   const [owner, repo] = (repoFull || '').split('/');
 
   let pr = event.pull_request || null;
-  // issue_comment 事件需要回查 PR
+  // issue_comment events need a round-trip to fetch the underlying PR
   if (!pr && event.issue && event.issue.pull_request && eventName === 'issue_comment') {
     const n = event.issue.number;
     const r = await gh.get(`/repos/${owner}/${repo}/pulls/${n}`);
@@ -352,7 +355,7 @@ async function loadContext(gh, localPath) {
   const body = pr ? pr.body : (event.pull_request ? event.pull_request.body : '');
   const labels = pr ? (pr.labels || []).map((l) => l.name) : [];
 
-  // 变更文件与 diff 统计
+  // Changed files + diff stats
   let files = [];
   let stats = { files: 0, additions: 0, deletions: 0, changes: 0 };
   if (number && repo) {
@@ -374,7 +377,7 @@ async function loadContext(gh, localPath) {
     }
   }
 
-  // 提交信息（用于 trailer 与 agent 识别）
+  // Commit messages (for trailers + agent identity)
   let commits = [];
   if (number && repo) {
     const r = await gh.get(`/repos/${owner}/${repo}/pulls/${number}/commits?per_page=100`);
@@ -386,7 +389,7 @@ async function loadContext(gh, localPath) {
     }
   }
 
-  // CI 状态（check-runs）
+  // CI status (check-runs)
   let ci = 'unknown';
   if (headSha && repo) {
     const r = await gh.get(`/repos/${owner}/${repo}/commits/${headSha}/check-runs?per_page=100`);
@@ -423,7 +426,7 @@ async function loadContext(gh, localPath) {
 }
 
 /* ==================================================================
- * 7. AI PR 识别
+ * 7. AI PR detection
  * ================================================================== */
 function detectAiPr(ctx, cfg) {
   const signals = [];
@@ -433,50 +436,50 @@ function detectAiPr(ctx, cfg) {
   const lowerBody = body.toLowerCase();
   const lowerTitle = title.toLowerCase();
 
-  // 7.1 标签
+  // 7.1 labels
   const labelHits = ctx.labels.filter((l) =>
     (ai.labels || []).some((p) => l.toLowerCase().includes(p.toLowerCase())));
   if (labelHits.length) signals.push({ type: 'label', detail: labelHits.join(', ') });
 
-  // 7.2 作者是 bot / 命中作者名单
-  if (ctx.authorType === 'Bot') signals.push({ type: 'author', detail: `作者是 Bot（${ctx.author}）` });
+  // 7.2 author is a bot / in the author allow-list
+  if (ctx.authorType === 'Bot') signals.push({ type: 'author', detail: `author is a Bot (${ctx.author})` });
   else if (ctx.author && /(bot|robot|automation|automated|\bai\b|agent)/i.test(ctx.author)) {
-    signals.push({ type: 'author', detail: `作者名疑似机器人（${ctx.author}）` });
+    signals.push({ type: 'author', detail: `author name looks like a bot (${ctx.author})` });
   }
   if (ctx.author && (ai.authors || []).includes(ctx.author)) {
-    signals.push({ type: 'author', detail: `作者在 ai.authors 白名单（${ctx.author}）` });
+    signals.push({ type: 'author', detail: `author in ai.authors list (${ctx.author})` });
   }
 
-  // 7.3 commit trailer
+  // 7.3 commit trailers
   const trailerRe = new RegExp('^(?:' + (ai.trailers || []).join('|') + '):\\s*(.+)$', 'im');
   for (const c of ctx.commits || []) {
     const m = c.message.match(trailerRe);
-    if (m) signals.push({ type: 'trailer', detail: `${m[0].trim()}（来自 commit）` });
+    if (m) signals.push({ type: 'trailer', detail: `${m[0].trim()} (from commit)` });
   }
 
-  // 7.4 PR 模板勾选
+  // 7.4 PR template checkboxes
   for (const marker of ai.template_markers || []) {
     const re = new RegExp('[-*]\\s*\\[[xX]\\][^\\n]*' + marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    if (re.test(body)) signals.push({ type: 'template', detail: `模板勾选「${marker}」` });
+    if (re.test(body)) signals.push({ type: 'template', detail: `template checkbox "${marker}"` });
   }
 
-  // 7.5 关键词
+  // 7.5 keywords
   for (const kw of ai.keywords || []) {
     if (lowerTitle.includes(kw.toLowerCase()) || lowerBody.includes(kw.toLowerCase())) {
-      signals.push({ type: 'keyword', detail: `关键词「${kw}」` });
+      signals.push({ type: 'keyword', detail: `keyword "${kw}"` });
     }
   }
 
-  // 7.6 生成式痕迹：结构化小节标题
+  // 7.6 generative traces: structured section headings
   const structured = [
     'summary', 'overview', 'changes', 'what changed', 'test plan', 'testing',
     'implementation', 'approach', 'motivation', 'checklist', 'screenshots',
   ];
   const headingCount = structured.filter((h) =>
     new RegExp('^#+\\s+' + h, 'im').test(body)).length;
-  if (headingCount >= 3) signals.push({ type: 'generative_trace', detail: `结构化小节 ${headingCount} 个，符合生成式模板特征` });
+  if (headingCount >= 3) signals.push({ type: 'generative_trace', detail: `${headingCount} structured headings, matches generated-template style` });
 
-  // 去重
+  // dedupe
   const seen = new Set();
   const unique = signals.filter((s) => {
     const k = s.type + ':' + s.detail;
@@ -485,7 +488,7 @@ function detectAiPr(ctx, cfg) {
     return true;
   });
 
-  // agent 身份：优先 trailer 里的 bot/ai 名，否则作者
+  // agent identity: prefer the generator name from a trailer, else the author
   let agent = ctx.author;
   const agentRe = /^(?:generated-by|generated-with|ai-assisted|commit-by):\s*([^\n<]+)/im;
   for (const c of ctx.commits || []) {
@@ -497,7 +500,7 @@ function detectAiPr(ctx, cfg) {
 }
 
 /* ==================================================================
- * 8. 限流（按仓库 / 作者 / agent，天 / 小时）
+ * 8. Rate limiting (per repo / author / agent, per day / hour)
  * ================================================================== */
 async function checkRateLimit(gh, ctx, cfg, isAi, agent) {
   const limits = cfg.limits || {};
@@ -531,7 +534,6 @@ async function checkRateLimit(gh, ctx, cfg, isAi, agent) {
       if (isDay) authorDay++;
       if (isHour) authorHour++;
     }
-    // agent 视为该 PR 作者（无 trailer 时），有 trailer 则按名字近似
     if (agent && (login === agent || (isAi && login === ctx.author))) {
       if (isDay) agentDay++;
       if (isHour) agentHour++;
@@ -541,28 +543,27 @@ async function checkRateLimit(gh, ctx, cfg, isAi, agent) {
   result.counts = { author_day: authorDay, agent_day: agentDay, repo_day: repoDay, author_hour: authorHour, agent_hour: agentHour, repo_hour: repoHour };
 
   const check = (count, limit, label) => {
-    if (limit != null && count >= limit) result.reasons.push(`${label}：${count} ≥ 上限 ${limit}`);
+    if (limit != null && count >= limit) result.reasons.push(`${label}: ${count} >= limit ${limit}`);
   };
-  check(agentDay, limits.per_agent_per_day, 'Agent 每日 PR 数');
-  check(repoDay, limits.per_repo_per_day, '仓库每日 PR 数');
-  check(authorDay, limits.per_author_per_day, '作者每日 PR 数');
-  check(agentHour, limits.per_agent_per_hour, 'Agent 每小时 PR 数');
-  check(repoHour, limits.per_repo_per_hour, '仓库每小时 PR 数');
-  check(authorHour, limits.per_author_per_hour, '作者每小时 PR 数');
+  check(agentDay, limits.per_agent_per_day, 'Agent PRs / day');
+  check(repoDay, limits.per_repo_per_day, 'Repo PRs / day');
+  check(authorDay, limits.per_author_per_day, 'Author PRs / day');
+  check(agentHour, limits.per_agent_per_hour, 'Agent PRs / hour');
+  check(repoHour, limits.per_repo_per_hour, 'Repo PRs / hour');
+  check(authorHour, limits.per_author_per_hour, 'Author PRs / hour');
 
   result.exceeded = result.reasons.length > 0;
   return result;
 }
 
 /* ==================================================================
- * 9. 风险分级
+ * 9. Risk classification
  * ================================================================== */
 function detectTests(ctx, cfg) {
   const testPaths = cfg.risk.test_paths || [];
   const hits = ctx.files.filter((f) => matchAny(f.filename, testPaths).length > 0);
-  // diff 中疑似测试关键词
   const body = (ctx.body || '').toLowerCase();
-  const mentionsTest = /test|测试|spec|fixture|snapshot/i.test(body);
+  const mentionsTest = /test|spec|fixture|snapshot/i.test(body);
   return hits.length > 0 || mentionsTest;
 }
 
@@ -573,215 +574,216 @@ function classifyRisk(ctx, cfg, signals) {
   const files = (ctx.files || []).map((f) => f.filename);
 
   const highHits = matchAny(files, risk.high_paths);
-  if (highHits.length) { level = 'high'; reasons.push('命中 high_paths：' + highHits.slice(0, 5).join(', ')); }
+  if (highHits.length) { level = 'high'; reasons.push('matches high_paths: ' + highHits.slice(0, 5).join(', ')); }
 
   const depHits = matchAny(files, risk.dependency_paths);
-  if (depHits.length) { level = 'high'; reasons.push('依赖变更：' + depHits.slice(0, 5).join(', ')); }
+  if (depHits.length) { level = 'high'; reasons.push('dependency change: ' + depHits.slice(0, 5).join(', ')); }
 
   const wfHits = matchAny(files, risk.workflow_paths);
-  if (wfHits.length) { level = 'high'; reasons.push('Workflow 变更：' + wfHits.slice(0, 5).join(', ')); }
+  if (wfHits.length) { level = 'high'; reasons.push('workflow change: ' + wfHits.slice(0, 5).join(', ')); }
 
   const authHits = matchAny(files, risk.auth_paths);
-  if (authHits.length) { level = 'high'; reasons.push('权限/认证/密钥相关变更：' + authHits.slice(0, 5).join(', ')); }
+  if (authHits.length) { level = 'high'; reasons.push('auth/permission/secret change: ' + authHits.slice(0, 5).join(', ')); }
 
   if (level === 'low') {
     const medHits = matchAny(files, risk.medium_paths);
-    if (medHits.length) { level = 'medium'; reasons.push('命中 medium_paths：' + medHits.slice(0, 5).join(', ')); }
+    if (medHits.length) { level = 'medium'; reasons.push('matches medium_paths: ' + medHits.slice(0, 5).join(', ')); }
     else if (ctx.stats.files > (cfg.limits.max_files || 20)) {
-      level = 'medium'; reasons.push(`文件数 ${ctx.stats.files} 超过阈值 ${cfg.limits.max_files}`);
+      level = 'medium'; reasons.push(`file count ${ctx.stats.files} exceeds limit ${cfg.limits.max_files}`);
     } else if (ctx.stats.additions > (cfg.limits.max_additions || 500)) {
-      level = 'medium'; reasons.push(`新增行 ${ctx.stats.additions} 超过阈值 ${cfg.limits.max_additions}`);
+      level = 'medium'; reasons.push(`additions ${ctx.stats.additions} exceed limit ${cfg.limits.max_additions}`);
     } else if (ctx.stats.deletions > (cfg.limits.max_deletions || 500)) {
-      level = 'medium'; reasons.push(`删除行 ${ctx.stats.deletions} 超过阈值 ${cfg.limits.max_deletions}`);
+      level = 'medium'; reasons.push(`deletions ${ctx.stats.deletions} exceed limit ${cfg.limits.max_deletions}`);
     } else if (signals.isAi && ctx.stats.files >= 3) {
-      level = 'medium'; reasons.push('AI 生成且改动面较大');
+      level = 'medium'; reasons.push('AI-generated with a non-trivial change surface');
     }
   }
 
   const hasTests = detectTests(ctx, cfg);
   if (!hasTests && (risk.require_tests_for || []).includes(level)) {
-    reasons.push('该风险级别要求测试证据，但未检测到测试文件');
+    reasons.push('this risk level requires test evidence, but none was detected');
   }
 
   if (ctx.ci === 'failure') {
     if (level === 'low') level = 'medium';
     else if (level === 'medium') level = 'high';
-    reasons.push('CI 状态为失败');
+    reasons.push('CI status is failure');
   }
 
-  if (reasons.length === 0) reasons.push('改动规模小、未命中敏感路径、有测试证据，风险低');
+  if (reasons.length === 0) reasons.push('small change surface, no sensitive paths, has test evidence — low risk');
 
   return { level, reasons, hasTests };
 }
 
 /* ==================================================================
- * 10. 人类担保人
+ * 10. Human guarantor
  * ================================================================== */
 async function checkGuarantor(gh, ctx, cfg, riskLevel) {
   const g = cfg.guarantor || {};
   const required = (g.required_for || []).includes(riskLevel);
-  if (!required) return { required: false, satisfied: true, evidence: '该风险级别不要求担保人' };
+  if (!required) return { required: false, satisfied: true, evidence: 'this risk level does not require a guarantor' };
 
-  // 方式 1：approved 标签
+  // Path 1: approved label
   if (ctx.labels.includes(g.approved_label)) {
-    return { required: true, satisfied: true, evidence: `已打标签 ${g.approved_label}` };
+    return { required: true, satisfied: true, evidence: `has label ${g.approved_label}` };
   }
 
-  // 方式 2：`/guarantee` 评论（来自非 bot 人类）
+  // Path 2: `/guarantee` comment from a non-bot human
   if (ctx.number && ctx.repo) {
     const r = await gh.get(`/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.number}/comments?per_page=100`);
     if (r.ok && Array.isArray(r.json)) {
       const humanGuarantee = r.json.find((c) =>
         c.body && c.body.trim().split(/\s+/)[0] === g.command && c.user && c.user.type !== 'Bot');
       if (humanGuarantee) {
-        return { required: true, satisfied: true, evidence: `${humanGuarantee.user.login} 已评论 ${g.command}` };
+        return { required: true, satisfied: true, evidence: `${humanGuarantee.user.login} commented ${g.command}` };
       }
     }
   }
 
-  return { required: true, satisfied: false, evidence: '尚未绑定人类担保人' };
+  return { required: true, satisfied: false, evidence: 'no human guarantor bound yet' };
 }
 
 /* ==================================================================
- * 11. 沙盒 / 白名单
+ * 11. Sandbox / allow-list
  * ================================================================== */
 function sandboxCheck(ctx, cfg) {
   const s = cfg.sandbox || {};
   const problems = [];
   let allowed = true;
   if (s.allow_repos && s.allow_repos.length && !s.allow_repos.includes(ctx.repoFull)) {
-    allowed = false; problems.push(`仓库 ${ctx.repoFull} 不在 sandbox.allow_repos`);
+    allowed = false; problems.push(`repo ${ctx.repoFull} not in sandbox.allow_repos`);
   }
   if (s.allow_branches && s.allow_branches.length) {
     const headOk = matchAny(ctx.headRef, s.allow_branches).length > 0;
     const baseOk = matchAny(ctx.baseRef, s.allow_branches).length > 0;
     if (!headOk && !baseOk) {
       if (s.enforce) { allowed = false; }
-      problems.push(`分支 ${ctx.headRef} → ${ctx.baseRef} 不在 sandbox.allow_branches`);
+      problems.push(`branch ${ctx.headRef} -> ${ctx.baseRef} not in sandbox.allow_branches`);
     }
   }
-  return { allowed, problems, note: problems.length ? problems.join('；') : '未开启沙盒白名单，全量试跑' };
+  return { allowed, problems, note: problems.length ? problems.join('; ') : 'no sandbox allow-list configured, running everywhere' };
 }
 
 /* ==================================================================
- * 12. 预审评论
+ * 12. Pre-review comment
  * ================================================================== */
 function buildComment(ctx, cfg, ai, risk, rate, guarantor, sandbox, mode) {
   const l = cfg.labels || {};
   const emoji = risk.level === 'high' ? '🔴' : risk.level === 'medium' ? '🟡' : '🟢';
   const lines = [];
 
-  lines.push(`## 🚂 AI 审查铁路 · 预审报告`);
+  lines.push(`## 🚂 AI Review Railway · Pre-review Report`);
   lines.push('');
-  lines.push(`> **模式**：\`${mode}\` · **风险等级**：\`${l[risk.level]}\` ${emoji}`);
+  lines.push(`> **Mode**: \`${mode}\` · **Risk level**: \`${l[risk.level]}\` ${emoji}`);
   lines.push('');
-  lines.push(`本报告由 \`ai-review-railway\` 自动生成，**不替代人类 review**，只是给人类 review 做承载层。`);
-  lines.push('');
-
-  // 变更摘要
-  lines.push('### 变更摘要');
-  lines.push('');
-  lines.push(`- **PR**：#${ctx.number} \`${ctx.title || '(无标题)'}\``);
-  lines.push(`- **作者**：@${ctx.author || 'unknown'}（${ctx.authorType || 'User'}）`);
-  lines.push(`- **Agent 身份**：\`${ai.agent || '（未识别）'}\``);
-  lines.push(`- **改动规模**：${ctx.stats.files} 个文件 · +${ctx.stats.additions} / −${ctx.stats.deletions}`);
-  lines.push(`- **CI 状态**：\`${ctx.ci}\``);
+  lines.push(`This report was auto-generated by \`ai-review-railway\`. It does **not** replace human review — it is the carrying layer for it.`);
   lines.push('');
 
-  // AI 识别
-  lines.push('### 识别结果');
+  // Change summary
+  lines.push('### Change summary');
+  lines.push('');
+  lines.push(`- **PR**: #${ctx.number} \`${ctx.title || '(untitled)'}\``);
+  lines.push(`- **Author**: @${ctx.author || 'unknown'} (${ctx.authorType || 'User'})`);
+  lines.push(`- **Agent**: \`${ai.agent || '(unidentified)'}\``);
+  lines.push(`- **Size**: ${ctx.stats.files} files · +${ctx.stats.additions} / −${ctx.stats.deletions}`);
+  lines.push(`- **CI status**: \`${ctx.ci}\``);
+  lines.push('');
+
+  // Detection
+  lines.push('### Detection');
   lines.push('');
   if (ai.isAi) {
-    lines.push(`⚠️ 判定为 **AI 生成 PR**，命中信号：`);
-    for (const s of ai.signals) lines.push(`- \`${s.type}\`：${s.detail}`);
+    lines.push(`⚠️ Flagged as an **AI-generated PR**. Signals:`);
+    for (const s of ai.signals) lines.push(`- \`${s.type}\`: ${s.detail}`);
   } else {
-    lines.push('未检测到明显 AI 生成信号。');
+    lines.push('No clear AI-generation signal detected.');
   }
   lines.push('');
 
-  // 风险
-  lines.push('### 风险分级');
+  // Risk
+  lines.push('### Risk classification');
   lines.push('');
-  lines.push(`等级：**\`${l[risk.level]}\`**`);
+  lines.push(`Level: **\`${l[risk.level]}\`**`);
   for (const r of risk.reasons) lines.push(`- ${r}`);
   lines.push('');
 
-  // 影响面
-  lines.push('### 影响面');
+  // Impact surface
+  lines.push('### Impact surface');
   lines.push('');
   const topPaths = ctx.files.slice(0, 15).map((f) => f.filename);
   if (topPaths.length) {
     lines.push('```');
     for (const p of topPaths) lines.push(p);
-    if (ctx.files.length > 15) lines.push(`... 共 ${ctx.files.length} 个文件`);
+    if (ctx.files.length > 15) lines.push(`... ${ctx.files.length} files total`);
     lines.push('```');
   } else {
-    lines.push('_（未能获取变更文件列表）_');
+    lines.push('_*(could not fetch the changed-file list)*_');
   }
   lines.push('');
 
-  // 测试证据
-  lines.push('### 测试证据');
+  // Test evidence
+  lines.push('### Test evidence');
   lines.push('');
-  lines.push(risk.hasTests ? '✅ 检测到测试文件或测试说明。' : '❌ 未检测到测试证据。');
-  lines.push('');
-
-  // 回滚方案
-  lines.push('### 回滚方案');
-  lines.push('');
-  lines.push(`- 常规回滚：\`git revert <merge-commit>\` 或直接关闭本 PR 即可回到基线。`);
-  if (risk.level === 'high') lines.push('- 高风险：建议先在私有矿区（sandbox 分支）跑通，再逐步放量。');
+  lines.push(risk.hasTests ? '✅ Test files or a test description were detected.' : '❌ No test evidence detected.');
   lines.push('');
 
-  // 建议审查顺序
-  lines.push('### 建议审查顺序');
+  // Rollback plan
+  lines.push('### Rollback plan');
+  lines.push('');
+  lines.push(`- Standard: \`git revert <merge-commit>\` or simply close this PR to return to baseline.`);
+  if (risk.level === 'high') lines.push('- High risk: run it through a private sandbox branch first, then ramp up gradually.');
+  lines.push('');
+
+  // Suggested review order
+  lines.push('### Suggested review order');
   lines.push('');
   const order = risk.level === 'high'
-    ? ['1. 先看 workflow / 依赖 / 权限类文件（最高风险面）', '2. 再看核心逻辑改动', '3. 确认测试与 CI 结果', '4. 人类担保人签字后合入']
-    : ['1. 快速浏览 diff 整体规模', '2. 核对测试证据', '3. 确认无敏感路径变更'];
+    ? ['1. Workflow / dependency / permission files first (highest blast radius)', '2. Core logic changes', '3. Confirm tests and CI results', '4. Merge after a human guarantor signs off']
+    : ['1. Scan the overall diff size', '2. Verify test evidence', '3. Confirm no sensitive paths are touched'];
   for (const o of order) lines.push(`- ${o}`);
   lines.push('');
 
-  // 阻断项
-  lines.push('### 阻断项');
+  // Blockers
+  lines.push('### Blockers');
   lines.push('');
   const blockers = [];
-  if (rate.exceeded) blockers.push(`⛔ **限流触发**：${rate.reasons.join('；')}`);
-  if (risk.ci === 'failure') blockers.push('⛔ CI 失败');
-  if (!risk.hasTests && (cfg.risk.require_tests_for || []).includes(risk.level)) blockers.push('⛔ 缺少测试证据');
-  if (guarantor.required && !guarantor.satisfied) blockers.push('⛔ 缺少人类担保人');
-  if (!sandbox.allowed) blockers.push(`⛔ 沙盒限制：${sandbox.problems.join('；')}`);
-  if (blockers.length === 0) blockers.push('无硬阻断项。');
+  if (rate.exceeded) blockers.push(`⛔ **Rate limit hit**: ${rate.reasons.join('; ')}`);
+  if (risk.ci === 'failure') blockers.push('⛔ CI failure');
+  if (!risk.hasTests && (cfg.risk.require_tests_for || []).includes(risk.level)) blockers.push('⛔ Missing test evidence');
+  if (guarantor.required && !guarantor.satisfied) blockers.push('⛔ Missing human guarantor');
+  if (!sandbox.allowed) blockers.push(`⛔ Sandbox restriction: ${sandbox.problems.join('; ')}`);
+  if (blockers.length === 0) blockers.push('No hard blockers.');
   for (const b of blockers) lines.push(`- ${b}`);
   lines.push('');
 
-  // 担保人状态
-  lines.push('### 人类担保人状态');
+  // Guarantor status
+  lines.push('### Human guarantor status');
   lines.push('');
   if (!guarantor.required) {
-    lines.push(`该 PR 风险为 \`${l[risk.level]}\`，不要求人类担保人。`);
+    lines.push(`This PR is \`${l[risk.level]}\`, which does not require a human guarantor.`);
   } else if (guarantor.satisfied) {
     lines.push(`✅ ${guarantor.evidence}`);
   } else {
-    lines.push(`❌ ${guarantor.evidence}。请由人类维护者评论 \`${cfg.guarantor.command}\` 或打标签 \`${cfg.guarantor.approved_label}\` 完成担保。`);
+    lines.push(`❌ ${guarantor.evidence}. A human maintainer should comment \`${cfg.guarantor.command}\` or apply the \`${cfg.guarantor.approved_label}\` label.`);
   }
   lines.push('');
 
-  // 度量（简版）
-  lines.push('### 本 PR 承载力度量');
+  // Load metrics
+  lines.push('### Load metrics for this PR');
   lines.push('');
-  lines.push(`- review 负载（文件数）：\`${ctx.stats.files}\``);
-  lines.push(`- diff 体积：\`+${ctx.stats.additions} / −${ctx.stats.deletions}\``);
-  lines.push(`- 风险等级：\`${l[risk.level]}\``);
+  lines.push(`- review load (files): \`${ctx.stats.files}\``);
+  lines.push(`- diff volume: \`+${ctx.stats.additions} / −${ctx.stats.deletions}\``);
+  lines.push(`- risk level: \`${l[risk.level]}\``);
   lines.push('');
   lines.push('---');
-  lines.push('<sub>这是「蒸汽机（AI Agent）」与「马匹（人类 reviewer）」并行时代的铁轨冶金层。若判断有误，人类维护者可直接关闭或纠正本 PR，本工具不会擅自关闭。</sub>');
+  lines.push('<sub>This is the railway-metallurgy layer for the era where "steam engines" (AI agents) and "horses" (human reviewers) run in parallel. If this is a false positive, a human maintainer can close or correct this PR — this tool never closes it on its own.</sub>');
 
   return lines.join('\n');
 }
 
 /* ==================================================================
- * 13. 度量（review 负载、接受率、回滚率、平均审查时长、维护者负担）
+ * 13. Aggregate metrics (review load, acceptance, rollback, review
+ *     time, maintainer burden)
  * ================================================================== */
 async function computeAggregateMetrics(gh, ctx) {
   const agg = {
@@ -800,20 +802,19 @@ async function computeAggregateMetrics(gh, ctx) {
   const merged = prs.filter((p) => p.merged_at);
   const closedUnmerged = closed.filter((p) => !p.merged_at);
   if (closed.length) agg.acceptance_rate = +(merged.length / closed.length).toFixed(3);
-  const rollbackTitles = prs.filter((p) => /revert|rollback|回滚|撤销/i.test(p.title || '')).length;
+  const rollbackTitles = prs.filter((p) => /revert|rollback/i.test(p.title || '')).length;
   if (closed.length) agg.rollback_rate = +(rollbackTitles / closed.length).toFixed(3);
   const mergedWithTime = merged.filter((p) => p.created_at && p.merged_at);
   if (mergedWithTime.length) {
     const total = mergedWithTime.reduce((a, p) => a + (new Date(p.merged_at) - new Date(p.created_at)), 0);
     agg.avg_review_minutes = Math.round(total / mergedWithTime.length / 60000);
   }
-  // 维护者负担：近期未合并被关掉的 PR 占比（近似“白看”的负担）
   if (closed.length) agg.maintainer_burden = +(closedUnmerged.length / closed.length).toFixed(3);
   return agg;
 }
 
 /* ==================================================================
- * 14. 动作执行（打标签 + 评论 + 输出 + 摘要）
+ * 14. Side effects (labels + comment + outputs + summary)
  * ================================================================== */
 function setOutput(name, value) {
   const outFile = env('GITHUB_OUTPUT');
@@ -835,10 +836,10 @@ async function addComment(gh, ctx, body) {
 }
 
 /* ==================================================================
- * 15. 主流程
+ * 15. Main flow
  * ================================================================== */
 async function main() {
-  // 解析命令行参数（本地运行友好）
+  // parse CLI args (local-friendly)
   const args = {};
   for (let i = 2; i < process.argv.length; i++) {
     const a = process.argv[i];
@@ -848,10 +849,10 @@ async function main() {
     else if (a === '--repo') args.repo = process.argv[++i];
   }
 
-  // 1) 加载配置
+  // 1) load config
   const configPath = args.config || env('INPUT_CONFIG_PATH') || '.ai-review-railway.yml';
   let userCfg = {};
-  let configSource = '内置默认';
+  let configSource = 'built-in defaults';
   const candidates = [configPath, path.join(env('GITHUB_WORKSPACE') || process.cwd(), configPath)];
   for (const c of candidates) {
     if (c && fs.existsSync(c)) {
@@ -864,45 +865,44 @@ async function main() {
   const cfg = deepMerge(DEFAULT_CONFIG, userCfg);
   if (args.mode) cfg.mode = args.mode;
 
-  // 2) 未启用则退出
+  // 2) bail out if disabled
   if (!cfg.enabled) {
-    process.stdout.write('ai-review-railway 未启用（enabled: false），跳过。\n');
+    process.stdout.write('ai-review-railway is disabled (enabled: false), skipping.\n');
     return;
   }
 
   const token = env('INPUT_TOKEN') || env('GITHUB_TOKEN') || process.env.GITHUB_TOKEN || '';
   const gh = new Gh(token);
 
-  // 3) 加载上下文
+  // 3) load context
   let ctx;
   try {
     ctx = await loadContext(gh, args.local);
   } catch (e) {
-    // 无事件上下文时，打印说明而非崩溃（便于本地试用）
-    process.stdout.write(`[ai-review-railway] 无法加载 PR 上下文：${e.message}\n`);
+    process.stdout.write(`[ai-review-railway] could not load PR context: ${e.message}\n`);
     return;
   }
   if (!ctx.number) {
-    process.stdout.write('[ai-review-railway] 当前事件不包含 PR，跳过。\n');
+    process.stdout.write('[ai-review-railway] current event does not contain a PR, skipping.\n');
     return;
   }
 
-  // 4) 识别 AI PR
+  // 4) detect AI PR
   const ai = detectAiPr(ctx, cfg);
 
-  // 5) 限流
+  // 5) rate limit
   const rate = await checkRateLimit(gh, ctx, cfg, ai.isAi, ai.agent);
 
-  // 6) 风险分级
+  // 6) risk classification
   const risk = classifyRisk(ctx, cfg, ai);
 
-  // 7) 担保人
+  // 7) guarantor
   const guarantor = await checkGuarantor(gh, ctx, cfg, risk.level);
 
-  // 8) 沙盒
+  // 8) sandbox
   const sandbox = sandboxCheck(ctx, cfg);
 
-  // 9) 度量
+  // 9) metrics
   const agg = cfg.review.metrics ? await computeAggregateMetrics(gh, ctx) : null;
   const metric = {
     generated_at: new Date().toISOString(),
@@ -925,19 +925,19 @@ async function main() {
     aggregate: agg,
   };
 
-  // 10) 打标签
+  // 10) add labels
   const l = cfg.labels || {};
   await addLabel(gh, ctx, l[risk.level]);
   if (guarantor.required && !guarantor.satisfied) await addLabel(gh, ctx, l.needs_guarantor);
 
-  // 11) 评论
+  // 11) comment
   const mode = cfg.mode;
   if (cfg.review.comment) {
     const body = buildComment(ctx, cfg, ai, risk, rate, guarantor, sandbox, mode);
     await addComment(gh, ctx, body);
   }
 
-  // 12) 度量落盘 + step summary
+  // 12) persist metrics + step summary
   if (cfg.review.metrics) {
     const ws = env('GITHUB_WORKSPACE') || process.cwd();
     const metricFile = path.join(ws, 'railway-metrics.json');
@@ -946,17 +946,17 @@ async function main() {
     if (summaryFile) {
       try {
         fs.appendFileSync(summaryFile, `## 🚂 AI Review Railway\n` +
-          `| PR | 风险 | AI? | 限流 | 担保 | 文件 | +add/−del | CI |\n` +
+          `| PR | Risk | AI? | Rate-limited | Guarantor | Files | +add/−del | CI |\n` +
           `| --- | --- | --- | --- | --- | --- | --- | --- |\n` +
-          `| #${ctx.number} | \`${l[risk.level]}\` | ${ai.isAi ? '是' : '否'} | ${rate.exceeded ? '⚠️' : '—'} | ${guarantor.required ? (guarantor.satisfied ? '✅' : '❌') : '—'} | ${ctx.stats.files} | +${ctx.stats.additions}/−${ctx.stats.deletions} | \`${ctx.ci}\` |\n`);
+          `| #${ctx.number} | \`${l[risk.level]}\` | ${ai.isAi ? 'yes' : 'no'} | ${rate.exceeded ? '⚠️' : '—'} | ${guarantor.required ? (guarantor.satisfied ? '✅' : '❌') : '—'} | ${ctx.stats.files} | +${ctx.stats.additions}/−${ctx.stats.deletions} | \`${ctx.ci}\` |\n`);
         if (agg) {
-          fs.appendFileSync(summaryFile, `\n**承载力度量**：近期 PR ${agg.prs_recent} 个 · 接受率 ${agg.acceptance_rate == null ? '—' : (agg.acceptance_rate * 100).toFixed(1) + '%'} · 回滚率 ${agg.rollback_rate == null ? '—' : (agg.rollback_rate * 100).toFixed(1) + '%'} · 平均审查 ${agg.avg_review_minutes == null ? '—' : agg.avg_review_minutes + ' 分钟'} · 维护者负担 ${agg.maintainer_burden == null ? '—' : (agg.maintainer_burden * 100).toFixed(1) + '%'}\n`);
+          fs.appendFileSync(summaryFile, `\n**Capacity metrics**: recent PRs ${agg.prs_recent} · acceptance ${agg.acceptance_rate == null ? '—' : (agg.acceptance_rate * 100).toFixed(1) + '%'} · rollback ${agg.rollback_rate == null ? '—' : (agg.rollback_rate * 100).toFixed(1) + '%'} · avg review ${agg.avg_review_minutes == null ? '—' : agg.avg_review_minutes + ' min'} · maintainer burden ${agg.maintainer_burden == null ? '—' : (agg.maintainer_burden * 100).toFixed(1) + '%'}\n`);
         }
       } catch (e) { /* ignore */ }
     }
   }
 
-  // 13) 输出
+  // 13) outputs
   setOutput('is_ai', ai.isAi);
   setOutput('risk_level', risk.level);
   setOutput('rate_limited', rate.exceeded);
@@ -976,7 +976,7 @@ async function main() {
 }
 
 /* ==================================================================
- * 导出（便于单元测试）+ 入口
+ * Exports (for unit testing) + entry point
  * ================================================================== */
 module.exports = {
   parseYaml, parseScalar, stripComment, globToRegExp, matchAny,
@@ -986,7 +986,7 @@ module.exports = {
 
 if (require.main === module) {
   main().catch((e) => {
-    process.stderr.write(`[ai-review-railway] 错误：${e.stack || e.message}\n`);
+    process.stderr.write(`[ai-review-railway] error: ${e.stack || e.message}\n`);
     process.exit(1);
   });
 }

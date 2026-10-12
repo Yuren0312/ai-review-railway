@@ -1,27 +1,27 @@
 ---
-name: Feature request（功能建议）
-about: 提出新能力或改进想法
+name: Feature request
+about: Suggest a new capability or improvement
 title: "[feature] "
 labels: enhancement
 assignees: ""
 ---
 
-## 需求背景
+## Background
 
-<!-- 你遇到了什么承载力问题，希望这个工具帮你解决什么？ -->
+<!-- What capacity problem are you facing that you hope this tool can solve? -->
 
-## 期望能力
+## Desired capability
 
-<!-- 描述你期望的功能，尽量具体。 -->
+<!-- Describe the feature you want, as concretely as possible. -->
 
-## 与现有能力的差异
+## Gap vs. current capabilities
 
-<!-- 现有「限流 / 分级 / 担保 / 沙盒 / 度量」哪些满足不了你？ -->
+<!-- Which of the existing "rate-limit / classify / guarantee / sandbox / metrics" abilities fall short for you? -->
 
-## 可接受的方案
+## Acceptable approaches
 
-<!-- 如果你有大致思路或偏好，欢迎写出。 -->
+<!-- If you have a rough idea or preference, share it. -->
 
-## 其他
+## Other
 
-<!-- 相关链接、示例仓库等。 -->
+<!-- Related links, example repos, etc. -->

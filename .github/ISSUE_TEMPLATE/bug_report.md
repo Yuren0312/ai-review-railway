@@ -1,40 +1,40 @@
 ---
-name: Bug report（缺陷报告）
-about: 报告 ai-review-railway 的缺陷或异常行为
+name: Bug report
+about: Report a bug or unexpected behavior in ai-review-railway
 title: "[bug] "
 labels: bug
 assignees: ""
 ---
 
-## 问题描述
+## Description
 
-<!-- 清晰描述发生了什么问题。 -->
+<!-- Clearly describe what went wrong. -->
 
-## 复现步骤
+## Steps to reproduce
 
 1.
 2.
 3.
 
-## 期望行为
+## Expected behavior
 
-<!-- 你期望它应该怎样做。 -->
+<!-- What you expected it to do. -->
 
-## 实际行为
+## Actual behavior
 
-<!-- 它实际做了什么（附评论截图 / 输出日志）。 -->
+<!-- What it actually did (attach comment screenshots / output logs). -->
 
-## 环境信息
+## Environment
 
-- 运行方式：GitHub Action / 本地
-- 仓库类型：公开 / 私有 / 组织
-- 事件类型：opened / synchronize / labeled / issue_comment
-- 配置（关键片段，脱敏后）：
+- Run mode: GitHub Action / local
+- Repo type: public / private / org
+- Event type: opened / synchronize / labeled / issue_comment
+- Config (key snippet, redacted):
 
 ```yaml
-# .ai-review-railway.yml 关键片段
+# .ai-review-railway.yml key snippet
 ```
 
-## 补充说明
+## Additional context
 
-<!-- 任何有助于定位问题的线索。 -->
+<!-- Anything that helps locate the problem. -->
